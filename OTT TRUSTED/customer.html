@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Dashboard - TRUSTED.SHOP</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👤</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { background-color: #faf7f2; color: #12141a; }
+    .customer-header { background: #ffffff; border-bottom: 1px solid #e7e5e4; padding: 14px 0; }
+    .customer-container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    .customer-card { background: #ffffff; border: 1px solid #ede7df; border-radius: 14px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .auto-drop-alert-box { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #f59e0b; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .credential-vault-box { background: #0c0e15; color: #fff; border: 1px solid var(--accent-gold); border-radius: 10px; padding: 18px; margin-top: 14px; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+  <!-- CUSTOMER HEADER -->
+  <header class="customer-header">
+    <div class="customer-container">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <a href="index.html" class="brand-main">
+            TRUSTED<span>.</span>SHOP
+          </a>
+          <span style="background: #faf3ed; border: 1px solid rgba(202, 160, 82, 0.3); color: #a67c33; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 4px;">
+            CUSTOMER PANEL
+          </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="text-align: right; font-size: 12.5px;">
+            <div style="font-weight: 700; color: #111;" id="customerDisplayEmail">vishaljain@gmail.com</div>
+            <div style="color: #6b7280;">Verified Buyer Account</div>
+          </div>
+          <a href="index.html" class="btn-primary-gold" style="font-size: 12px; padding: 7px 14px;">
+            🛒 Browse Store
+          </a>
+          <button onclick="handleCustomerLogout()" style="background: #f3f4f6; border: 1px solid #e5e7eb; color: #4b5563; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="customer-container" style="padding-top: 30px; padding-bottom: 60px;">
+    <!-- Welcome & Auto Drop Status Bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <h1 style="font-size: 26px; font-weight: 800; color: #111;">
+          My Subscriptions &amp; Digital Access
+        </h1>
+        <p style="color: #6b7280; font-size: 14px;">
+          View live order statuses, automated 2-minute credential drops, and active passwords.
+        </p>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button onclick="renderCustomerOrders()" class="view-all-pill">
+          🔄 Refresh Status
+        </button>
+        <a href="https://wa.me/919999999999?text=Hello%20Support,%20I%20am%20vishaljain@gmail.com" target="_blank" class="btn-primary-gold" style="font-size: 12.5px; padding: 8px 16px;">
+          💬 WhatsApp Support
+        </a>
+      </div>
+    </div>
+
+    <!-- Active 2-Minute Auto Drop Tracker Alert -->
+    <div id="liveAutoDropTracker" style="display: none;"></div>
+
+    <!-- Subscriptions & Orders List -->
+    <div id="customerOrdersContainer">
+      <!-- Populated via script -->
+    </div>
+  </main>
+
+  <script src="js/products.js"></script>
+  <script src="js/orders.js"></script>
+  <script src="js/auto-drop-server.js"></script>
+  <script src="js/famgateway.js"></script>
+  <script>
+    const CUSTOMER_EMAIL = "vishaljain@gmail.com";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Check/set customer email
+      const user = localStorage.getItem("trusted_customer_email") || CUSTOMER_EMAIL;
+      document.getElementById("customerDisplayEmail").textContent = user;
+      renderCustomerOrders();
+
+      // Poll drop server queue every second
+      setInterval(() => {
+        updateCustomerDropTimer();
+      }, 1000);
+    });
+
+    function handleCustomerLogout() {
+      localStorage.removeItem("trusted_customer_email");
+      window.location.href = "index.html";
+    }
+
+    function renderCustomerOrders() {
+      const container = document.getElementById("customerOrdersContainer");
+      const trackerDiv = document.getElementById("liveAutoDropTracker");
+      const orders = getAllOrders();
+      const queue = getDropQueue();
+      const now = Date.now();
+
+      // Check if there are active pending drops in the 2-minute server queue
+      const pendingDrops = queue.filter(q => q.status === "pending");
+
+      if (pendingDrops.length > 0) {
+        trackerDiv.style.display = "block";
+        trackerDiv.innerHTML = pendingDrops.map(task => {
+          const remSec = Math.max(0, Math.ceil((task.dropAt - now) / 1000));
+          const mins = String(Math.floor(remSec / 60)).padStart(2, '0');
+          const secs = String(remSec % 60).padStart(2, '0');
+
+          return `
+            <div class="auto-drop-alert-box">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <div style="font-size: 11px; font-weight: 800; color: #b45309; text-transform: uppercase; letter-spacing: 0.8px;">
+                    ⚡ AUTOMATED ID &amp; PASSWORD DROP SERVER IN PROGRESS
+                  </div>
+                  <h3 style="font-size: 18px; font-weight: 800; color: #92400e; margin-top: 2px;">
+                    Order ${task.orderId} - Credentials Dropping in: <span id="clientTimer-${task.taskId}" style="font-family: monospace; font-size: 22px; font-weight: 900; color: #d97706;">${mins}:${secs}</span>
+                  </h3>
+                  <p style="font-size: 13px; color: #78350f; margin-top: 4px;">
+                    Our automated server is preparing and verifying your ${task.items.map(i => i.title).join(", ")} slot. Credentials will reveal right here automatically!
+                  </p>
+                </div>
+                <div>
+                  <button onclick="triggerImmediateDrop('${task.taskId}'); renderCustomerOrders();" class="btn-primary-gold" style="font-size: 12px; padding: 8px 14px;">
+                    ⚡ Skip Wait (Drop Now)
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      } else {
+        trackerDiv.style.display = "none";
+      }
+
+      if (orders.length === 0) {
+        container.innerHTML = `
+          <div class="customer-card" style="text-align: center; padding: 50px 20px;">
+            <div style="font-size: 40px; margin-bottom: 12px;">🛍️</div>
+            <h3 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">No Active Orders Found</h3>
+            <p style="color: #6b7280; font-size: 13.5px; margin-bottom: 20px;">You haven't placed an order yet. Browse our OTT plans and PC games.</p>
+            <a href="index.html" class="btn-primary-gold" style="padding: 10px 20px; font-size: 13.5px;">Browse Store &rarr;</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = orders.map(order => `
+        <div class="customer-card">
+          <!-- Card Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid #f3ede6; padding-bottom: 16px; margin-bottom: 16px;">
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: #78716c; font-weight: 800;">Order ID</div>
+              <div style="font-size: 19px; font-weight: 900; color: #111;">${order.orderId}</div>
+              <div style="font-size: 12.5px; color: #6b7280; margin-top: 2px;">Placed on ${order.date}</div>
+            </div>
+
+            <div style="text-align: right;">
+              <span style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #166534; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px;">
+                ✓ ${order.status}
+              </span>
+              <div style="font-size: 14px; font-weight: 800; color: #a67c33; margin-top: 4px;">
+                ₹${order.total} &bull; ${order.paymentStatus}
+              </div>
+            </div>
+          </div>
+
+          <!-- Items & Credentials -->
+          <h4 style="font-size: 15px; font-weight: 700; color: #111; margin-bottom: 12px;">Access Credentials &amp; Profiles:</h4>
+          ${order.items.map(item => `
+            <div style="background: #faf7f2; border: 1px solid #ede7df; border-radius: 10px; padding: 16px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;">
+                <strong style="font-size: 15px; color: #111;">${item.title}</strong>
+                <span style="font-size: 12.5px; font-weight: 700; color: #a67c33;">${item.plan}</span>
+              </div>
+
+              ${item.credentials ? renderCustomerCredentials(item.credentials) : `
+                <div style="background: #fff; border: 1px dashed #f59e0b; border-radius: 8px; padding: 14px; color: #b45309; font-size: 13px;">
+                  ⏳ <strong>Automated Drop in Progress:</strong> Credentials will drop automatically via server within 2 minutes.
+                </div>
+              `}
+            </div>
+          `).join('')}
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+            <a href="https://wa.me/919999999999?text=Hello%20Support,%20I%20need%20help%20with%20Order%20${order.orderId}" target="_blank" class="btn-secondary-glass" style="font-size: 12.5px; padding: 8px 16px; color: #111; background: #fff; border: 1px solid #e5e7eb;">
+              💬 Need Help with this Order?
+            </a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderCustomerCredentials(creds) {
+      return `
+        <div class="credential-vault-box">
+          <div style="color: #22c55e; font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>✓ CREDENTIALS DROPPED BY AUTO SERVER</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 13px; line-height: 1.6;">
+            ${creds.email ? `
+              <span style="color: #9ca3af;">Login / ID:</span>
+              <span style="color: #fff; font-weight: 700;">
+                ${creds.email}
+                <button onclick="copyText('${creds.email}')" style="background:none; color:var(--accent-gold); font-size:11px; text-decoration:underline; margin-left:8px;">Copy</button>
+              </span>
+            ` : ''}
+
+            ${creds.password ? `
+              <span style="color: #9ca3af;">Password / Key:</span>
+              <span style="color: var(--accent-gold-light); font-weight: 700;">
+                ${creds.revealedPass || creds.password}
+                <button onclick="copyText('${creds.revealedPass || creds.password}')" style="background:none; color:var(--accent-gold); font-size:11px; text-decoration:underline; margin-left:8px;">Copy</button>
+              </span>
+            ` : ''}
+
+            ${creds.profile ? `
+              <span style="color: #9ca3af;">Profile Name:</span>
+              <span style="color: #fff; font-weight: 700;">${creds.profile}</span>
+            ` : ''}
+
+            ${creds.pin ? `
+              <span style="color: #9ca3af;">Profile PIN:</span>
+              <span style="color: #22c55e; font-weight: 800;">${creds.pin}</span>
+            ` : ''}
+
+            ${creds.validUntil ? `
+              <span style="color: #9ca3af;">Active Until:</span>
+              <span style="color: #d1d5db;">${creds.validUntil}</span>
+            ` : ''}
+          </div>
+
+          ${creds.instructions ? `
+            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 11.5px; color: #9ca3af;">
+              📌 <strong>Usage Guide:</strong> ${creds.instructions}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function updateCustomerDropTimer() {
+      const queue = getDropQueue();
+      const now = Date.now();
+      let hasChange = false;
+
+      queue.forEach(task => {
+        const el = document.getElementById(`clientTimer-${task.taskId}`);
+        if (el && task.status === "pending") {
+          const remSec = Math.max(0, Math.ceil((task.dropAt - now) / 1000));
+          if (remSec === 0) {
+            hasChange = true;
+          } else {
+            const mins = String(Math.floor(remSec / 60)).padStart(2, '0');
+            const secs = String(remSec % 60).padStart(2, '0');
+            el.textContent = `${mins}:${secs}`;
+          }
+        }
+      });
+
+      if (hasChange) {
+        renderCustomerOrders();
+      }
+    }
+
+    function copyText(val) {
+      navigator.clipboard.writeText(val).then(() => {
+        alert("Copied to clipboard: " + val);
+      });
+    }
+  </script>
+</body>
+</html>
